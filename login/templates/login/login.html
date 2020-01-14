@@ -12,8 +12,9 @@
 <div class="container">
     <div class="col">
         <form class="form-login" action="/login/" method="post">
-
-            {% if message %}
+            {% if login_form.captcha.errors %}
+                <div class="alert alert-warning">{{ login_form.captcha.errors }}</div>
+            {% elif message %}
                 <div class="alert alert-warning">{{ message }}</div>
             {% endif %}
 
