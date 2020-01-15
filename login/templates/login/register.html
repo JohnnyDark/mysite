@@ -14,7 +14,7 @@
 <body>
 <div class="container">
     <div class="col">
-        <form class="form-register" action="/register/" method="post">
+        <form class="form-register" action="{% url 'login:register' %}" method="post">
             {% csrf_token %}
             {% if register_form.captcha.errors %}
                 <div class="alert alert-warning">{{ register_form.captcha.errors }}</div>
@@ -53,7 +53,7 @@
                 {{ register_form.captcha }}
             </div>
             <div>
-                <a href="/login/">
+                <a href="{% url 'login:login' %}">
                     <ins>直接登录</ins>
                 </a>
                 <button type="submit" class="btn btn-primary float-right">注册</button>

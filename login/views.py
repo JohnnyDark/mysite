@@ -1,6 +1,8 @@
 import datetime
 
+# from django.conf import settings
 from django.shortcuts import render, redirect
+from django.urls import reverse
 
 from login import forms
 from login.models import User, ConfirmString
@@ -18,33 +20,40 @@ def hash_code(s, salt='mysite'):
 
 def index(request):
     if not request.session.get('is_login', None):  # 未登录时index页面访问限制
-        return redirect('/login/')
+        return redirect(reverse('login:index'))
     return render(request, 'login/index.html')
 
 
 def login(request):
     if request.session.get('is_login', None):  # 不允许重复登录
-        return redirect('/index/')
+        return redirect(reverse('login:login'))
     if request.method == "POST":
         # username = request.POST.get('username')
         # password = request.POST.get('password')
         login_form = forms.UserForm(request.POST)
         message = '请检查填写的内容'
         # if username.strip() and password:
+        print('11111')
         if login_form.is_valid():
+            print('start')
             username = login_form.cleaned_data.get('username')
             password = login_form.cleaned_data.get('password')
+            print(username, password)
             # 数据合法性校验
             try:
                 user = User.objects.get(name=username)
             except:
                 message = '用户不存在'
                 return render(request, 'login/login.html', locals())
+            if not user.has_confirmed:
+                message = '该用户还未经过邮件确认'
+                return render(request, 'login/login.html', locals())
+
             if user.password == hash_code(password):  # 登录成功记录账号状态
                 request.session['is_login'] = True
                 request.session['user_id'] = user.id
                 request.session['user_name'] = user.name
-                return redirect('/index/')
+                return redirect(reverse('login:index'))
             else:
                 message = '密码不正确'
                 return render(request, 'login/login.html', locals())
@@ -56,7 +65,7 @@ def login(request):
 
 def register(request):
     if request.session.get('is_login', None):
-        return redirect('/index/')
+        return redirect(reverse('login:index'))
 
     if request.method == 'POST':
         register_form = forms.RegisterForm(request.POST)
@@ -113,14 +122,38 @@ def send_email(email, code):
                     这里是刘江的博客和教程站点，专注于Python、Django和机器学习技术的分享！</p>
                     <p>请点击站点链接完成注册确认！</p>
                     <p>此链接有效期为{}天！</p>'''.format('127.0.0.1:8000', code, settings.CONFIRM_DAYS)
-    msg = EmailMultiAlternatives(subject, text_content, html_content, settings.EMAIL_HOST_USER, [email])
+    msg = EmailMultiAlternatives(subject, text_content, settings.EMAIL_HOST_USER, (email,))
     msg.attach_alternative(html_content, 'text/html')
     msg.send()
 
 
 def logout(request):
     if not request.session.get('is_login', None):
-        return redirect("/login/")
+        return redirect(reverse('login:login'))
 
     request.session.flush()
-    return redirect('/login/')
+    return redirect(reverse('login:login'))
+
+
+def user_confirm(request):
+    code = request.GET.get('code', None)
+    message = ''
+    try:
+        confirm = ConfirmString.objects.get(code=code)
+    except:
+        message = '无效的激活码'
+        return render(request, 'login/confirm.html', locals())
+    c_time = confirm.c_time
+    now = datetime.datetime.now()
+    if now > c_time + datetime.timedelta(settings.CONFIRM_DAYS):
+        confirm.user.delete()
+        message = '激活链接已过期， 请重新注册'
+        return render(request, 'login/confirm.html', locals())
+    else:
+        confirm.user.has_confirmed = True
+        confirm.user.save()
+        confirm.delete()
+        message = '激活成功，请登录'
+        return render(request, 'login/confirm.html', locals())
+
+
